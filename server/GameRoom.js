@@ -379,6 +379,8 @@ class GameRoom {
             const halfW = mapData.width / 2 - 3, halfH = mapData.height / 2 - 3;
             if (newX > -halfW && newX < halfW && newZ > -halfH && newZ < halfH && !this.checkObstacleCollision(newX, newZ, hull)) {
                 player.x = newX; player.z = newZ;
+                // Calculate height based on ramps
+                player.y = this.getGroundHeight(player.x, player.z, mapData);
             } else {
                 player.currentSpeed *= 0.3; // Slow down on collision
             }
@@ -469,11 +471,33 @@ class GameRoom {
         }
         return false;
     }
+    
+    // Get ground height at a position (for ramps)
+    getGroundHeight(x, z, mapData) {
+        for (const obs of mapData.obstacles) {
+            if (obs.type !== 'ramp') continue;
+            
+            const halfW = obs.width / 2;
+            const halfD = obs.depth / 2;
+            
+            if (x > obs.x - halfW && x < obs.x + halfW && 
+                z > obs.z - halfD && z < obs.z + halfD) {
+                // Calculate height based on position on ramp
+                // Assume ramp goes from z-start (low) to z-end (high)
+                const progress = (z - (obs.z - halfD)) / obs.depth;
+                return progress * obs.height;
+            }
+        }
+        return 0; // Default ground level
+    }
 
     checkObstacleCollision(x, z, hull) {
         const mapData = MAPS[this.map] || MAPS.sandbox;
         const tankRadius = Math.max(hull.width, hull.length) / 2;
         for (const obs of mapData.obstacles) {
+            // Ramps don't block movement, they just change height
+            if (obs.type === 'ramp') continue;
+            
             const halfW = obs.width / 2 + tankRadius, halfD = obs.depth / 2 + tankRadius;
             if (x > obs.x - halfW && x < obs.x + halfW && z > obs.z - halfD && z < obs.z + halfD) return true;
         }
@@ -561,9 +585,9 @@ class GameRoom {
         const dx = endX - startX;
         const dz = endZ - startZ;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        // Use very fine step size (0.1 units) to prevent tunneling through walls
-        // For fast projectiles this is critical
-        const stepSize = 0.1;
+        // Use extremely fine step size (0.05 units) to prevent tunneling through walls
+        // Critical for fast projectiles like Railgun (300 speed) and Shaft (400 speed)
+        const stepSize = 0.05;
         const steps = Math.max(Math.ceil(dist / stepSize), 1);
         
         for (let step = 1; step <= steps; step++) {
@@ -572,6 +596,9 @@ class GameRoom {
             const checkZ = startZ + dz * t;
             
             for (const obs of mapData.obstacles) {
+                // Skip ramps for projectile collision (they're passable)
+                if (obs.type === 'ramp') continue;
+                
                 const halfW = obs.width / 2 + PROJECTILE_COLLISION_BUFFER;
                 const halfD = obs.depth / 2 + PROJECTILE_COLLISION_BUFFER;
                 

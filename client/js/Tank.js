@@ -201,6 +201,11 @@ class Tank {
         this.x += (this.targetX - this.x) * lerpFactor;
         this.z += (this.targetZ - this.z) * lerpFactor;
         
+        // Update Y position based on ground height (for ramps)
+        if (data.y !== undefined) {
+            this.y += (data.y - this.y) * lerpFactor;
+        }
+        
         // Smooth rotation with wrapping
         let rotDiff = data.rotation - this.rotation;
         while (rotDiff > Math.PI) rotDiff -= Math.PI * 2;
@@ -214,7 +219,14 @@ class Tank {
         this.turretRotation += turretDiff * lerpFactor * 1.5;
         
         this.hp = data.hp;
-        this.alive = data.alive;
+        // Handle alive state change - always update
+        const wasAlive = this.alive;
+        this.alive = data.alive !== false;  // Default to true if not specified
+        
+        // Force visibility update on respawn
+        if (!wasAlive && this.alive) {
+            this.mesh.visible = true;
+        }
         
         this.mesh.position.set(this.x, this.y, this.z);
         this.mesh.rotation.y = this.rotation;
