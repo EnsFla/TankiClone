@@ -576,7 +576,7 @@ class Game {
         const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 8;
         
         // Camera positioned behind the tank (opposite of where turret is aiming)
-        // The camera should be BEHIND the turret, so we ADD to go in the opposite direction
+        // We SUBTRACT to position the camera behind the turret direction
         const targetX = localPlayer.x - Math.sin(turretAngle) * cameraDistance;
         const targetZ = localPlayer.z - Math.cos(turretAngle) * cameraDistance;
         const targetY = cameraHeight;
