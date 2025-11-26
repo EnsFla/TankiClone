@@ -451,11 +451,65 @@ class Game {
         this.sendInput();
         this.updateCamera(deltaTime);
         this.updateProjectiles(deltaTime);
+        this.updateStreamWeapons(deltaTime);
         this.effects.update(deltaTime);
         this.updateHUD();
         this.updateMinimap();
         this.updateFPS(deltaTime);
         this.updateWeaponInfo();
+    }
+    
+    updateStreamWeapons(deltaTime) {
+        // Show stream weapon visuals for the local player when shooting
+        const localPlayer = this.getLocalPlayer();
+        if (!localPlayer || !localPlayer.alive) return;
+        
+        const turretConfig = CONFIG.TURRETS[localPlayer.turret];
+        if (!turretConfig) return;
+        
+        const isStreamWeapon = turretConfig.type === 'stream' || turretConfig.type === 'beam';
+        if (!isStreamWeapon) return;
+        
+        // Check if player is holding down mouse (shooting)
+        if (!this.mouse.down) return;
+        
+        // Calculate stream start and end positions
+        const turretRotation = document.pointerLockElement === this.canvas 
+            ? this.turretAngle 
+            : (localPlayer.turretRotation || 0);
+            
+        const startX = localPlayer.x + Math.sin(turretRotation) * 2.5;
+        const startY = 1.5;
+        const startZ = localPlayer.z + Math.cos(turretRotation) * 2.5;
+        
+        const range = turretConfig.range || 20;
+        const endX = localPlayer.x + Math.sin(turretRotation) * range;
+        const endY = 1.5;
+        const endZ = localPlayer.z + Math.cos(turretRotation) * range;
+        
+        // Create stream visual effect with weapon color
+        this.effects.createStream(startX, startY, startZ, endX, endY, endZ, turretConfig.color);
+        
+        // Add extra particles for flamethrower effect
+        if (turretConfig.name === 'Firebird') {
+            // Fire particles along the stream
+            const dist = Math.random() * range * 0.8;
+            const particleX = localPlayer.x + Math.sin(turretRotation) * dist + (Math.random() - 0.5) * 2;
+            const particleZ = localPlayer.z + Math.cos(turretRotation) * dist + (Math.random() - 0.5) * 2;
+            this.effects.createHitSpark(particleX, 1 + Math.random(), particleZ, 0xff4400);
+        } else if (turretConfig.name === 'Freeze') {
+            // Ice particles along the stream
+            const dist = Math.random() * range * 0.8;
+            const particleX = localPlayer.x + Math.sin(turretRotation) * dist + (Math.random() - 0.5) * 2;
+            const particleZ = localPlayer.z + Math.cos(turretRotation) * dist + (Math.random() - 0.5) * 2;
+            this.effects.createHitSpark(particleX, 1 + Math.random(), particleZ, 0x00ccff);
+        } else if (turretConfig.name === 'Isida') {
+            // Heal particles
+            const dist = Math.random() * range * 0.8;
+            const particleX = localPlayer.x + Math.sin(turretRotation) * dist + (Math.random() - 0.5) * 1.5;
+            const particleZ = localPlayer.z + Math.cos(turretRotation) * dist + (Math.random() - 0.5) * 1.5;
+            this.effects.createHitSpark(particleX, 1 + Math.random(), particleZ, 0x00ff00);
+        }
     }
 
     sendInput() {
@@ -518,15 +572,16 @@ class Game {
             ? this.turretAngle 
             : (localPlayer.turretRotation || 0);
         const cameraDistance = CONFIG.CAMERA_DISTANCE || 14;
-        const cameraHeight = CONFIG.CAMERA_HEIGHT || 8;
-        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 6;
+        const cameraHeight = CONFIG.CAMERA_HEIGHT || 10;
+        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 8;
         
-        // Camera positioned behind the turret direction
+        // Camera positioned behind the tank (opposite of where turret is aiming)
+        // The camera should be BEHIND the turret, so we ADD to go in the opposite direction
         const targetX = localPlayer.x - Math.sin(turretAngle) * cameraDistance;
         const targetZ = localPlayer.z - Math.cos(turretAngle) * cameraDistance;
         const targetY = cameraHeight;
         
-        // Calculate look-at point ahead of the tank (where the turret is aiming)
+        // Look-at point is ahead of the tank in the turret direction
         const lookAtX = localPlayer.x + Math.sin(turretAngle) * lookAhead;
         const lookAtZ = localPlayer.z + Math.cos(turretAngle) * lookAhead;
         

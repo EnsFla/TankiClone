@@ -115,37 +115,205 @@ class GameMap {
         obstacles.forEach(obs => {
             const group = new THREE.Group();
             
-            // Main obstacle body
-            const geom = new THREE.BoxGeometry(obs.width, obs.height, obs.depth);
-            const mat = new THREE.MeshPhongMaterial({ 
-                color: 0x778877,
-                shininess: 15
-            });
-            const mesh = new THREE.Mesh(geom, mat);
-            mesh.position.y = obs.height / 2;
-            mesh.castShadow = true;
-            mesh.receiveShadow = true;
-            group.add(mesh);
-            
-            // Top detail
-            const topGeom = new THREE.BoxGeometry(obs.width + 0.3, 0.3, obs.depth + 0.3);
-            const topMat = new THREE.MeshPhongMaterial({ color: 0x6a7a6a, shininess: 20 });
-            const top = new THREE.Mesh(topGeom, topMat);
-            top.position.y = obs.height + 0.15;
-            top.castShadow = true;
-            group.add(top);
-            
-            // Base detail
-            const baseGeom = new THREE.BoxGeometry(obs.width + 0.5, 0.2, obs.depth + 0.5);
-            const baseMat = new THREE.MeshPhongMaterial({ color: 0x5a6a5a });
-            const base = new THREE.Mesh(baseGeom, baseMat);
-            base.position.y = 0.1;
-            group.add(base);
+            if (obs.type === 'ramp') {
+                // Create a ramp with sloped surface
+                this.createRamp(group, obs);
+            } else if (obs.type === 'platform') {
+                // Elevated platform with ramp access
+                this.createPlatform(group, obs);
+            } else if (obs.type === 'building') {
+                // Building with windows
+                this.createBuilding(group, obs);
+            } else {
+                // Default box obstacle
+                const geom = new THREE.BoxGeometry(obs.width, obs.height, obs.depth);
+                const mat = new THREE.MeshPhongMaterial({ 
+                    color: 0x778877,
+                    shininess: 15
+                });
+                const mesh = new THREE.Mesh(geom, mat);
+                mesh.position.y = obs.height / 2;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                group.add(mesh);
+                
+                // Top detail
+                const topGeom = new THREE.BoxGeometry(obs.width + 0.3, 0.3, obs.depth + 0.3);
+                const topMat = new THREE.MeshPhongMaterial({ color: 0x6a7a6a, shininess: 20 });
+                const top = new THREE.Mesh(topGeom, topMat);
+                top.position.y = obs.height + 0.15;
+                top.castShadow = true;
+                group.add(top);
+                
+                // Base detail
+                const baseGeom = new THREE.BoxGeometry(obs.width + 0.5, 0.2, obs.depth + 0.5);
+                const baseMat = new THREE.MeshPhongMaterial({ color: 0x5a6a5a });
+                const base = new THREE.Mesh(baseGeom, baseMat);
+                base.position.y = 0.1;
+                group.add(base);
+            }
             
             group.position.set(obs.x, 0, obs.z);
             this.scene.add(group);
             this.obstacles.push(group);
         });
+    }
+    
+    createRamp(group, obs) {
+        // Create a ramp using a custom shape
+        const shape = new THREE.Shape();
+        shape.moveTo(-obs.depth / 2, 0);
+        shape.lineTo(obs.depth / 2, 0);
+        shape.lineTo(obs.depth / 2, obs.height);
+        shape.lineTo(-obs.depth / 2, 0);
+        
+        const extrudeSettings = {
+            steps: 1,
+            depth: obs.width,
+            bevelEnabled: false
+        };
+        
+        const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+        const material = new THREE.MeshPhongMaterial({ 
+            color: 0x887766,
+            shininess: 10
+        });
+        const ramp = new THREE.Mesh(geometry, material);
+        ramp.rotation.y = Math.PI / 2;
+        ramp.position.x = -obs.width / 2;
+        ramp.castShadow = true;
+        ramp.receiveShadow = true;
+        group.add(ramp);
+        
+        // Add edge strips for visual appeal
+        const stripMat = new THREE.MeshPhongMaterial({ color: 0xffaa00, emissive: 0x443300 });
+        const stripGeom = new THREE.BoxGeometry(obs.width + 0.2, 0.1, 0.3);
+        
+        const strip1 = new THREE.Mesh(stripGeom, stripMat);
+        strip1.position.set(0, 0.05, -obs.depth / 2);
+        group.add(strip1);
+        
+        const strip2 = new THREE.Mesh(stripGeom, stripMat);
+        strip2.position.set(0, obs.height / 2, 0);
+        strip2.rotation.x = -Math.atan2(obs.height, obs.depth);
+        group.add(strip2);
+    }
+    
+    createPlatform(group, obs) {
+        // Main platform
+        const platformGeom = new THREE.BoxGeometry(obs.width, 0.5, obs.depth);
+        const platformMat = new THREE.MeshPhongMaterial({ 
+            color: 0x666677,
+            shininess: 20
+        });
+        const platform = new THREE.Mesh(platformGeom, platformMat);
+        platform.position.y = obs.height;
+        platform.castShadow = true;
+        platform.receiveShadow = true;
+        group.add(platform);
+        
+        // Support pillars
+        const pillarGeom = new THREE.CylinderGeometry(0.5, 0.6, obs.height, 8);
+        const pillarMat = new THREE.MeshPhongMaterial({ color: 0x555566 });
+        
+        const pillarPositions = [
+            [-obs.width / 3, -obs.depth / 3],
+            [obs.width / 3, -obs.depth / 3],
+            [-obs.width / 3, obs.depth / 3],
+            [obs.width / 3, obs.depth / 3]
+        ];
+        
+        pillarPositions.forEach(pos => {
+            const pillar = new THREE.Mesh(pillarGeom, pillarMat);
+            pillar.position.set(pos[0], obs.height / 2, pos[1]);
+            pillar.castShadow = true;
+            group.add(pillar);
+        });
+        
+        // Ramp to access the platform
+        const rampWidth = 4;
+        const rampShape = new THREE.Shape();
+        rampShape.moveTo(-obs.depth / 2 - 4, 0);
+        rampShape.lineTo(-obs.depth / 2, 0);
+        rampShape.lineTo(-obs.depth / 2, obs.height);
+        rampShape.lineTo(-obs.depth / 2 - 4, 0);
+        
+        const rampGeom = new THREE.ExtrudeGeometry(rampShape, { steps: 1, depth: rampWidth, bevelEnabled: false });
+        const rampMat = new THREE.MeshPhongMaterial({ color: 0x777788 });
+        const ramp = new THREE.Mesh(rampGeom, rampMat);
+        ramp.rotation.y = Math.PI / 2;
+        ramp.position.x = -rampWidth / 2;
+        ramp.castShadow = true;
+        ramp.receiveShadow = true;
+        group.add(ramp);
+        
+        // Guardrails on platform
+        const railMat = new THREE.MeshPhongMaterial({ color: 0xffaa00, emissive: 0x332200 });
+        const railGeom = new THREE.BoxGeometry(0.15, 0.8, obs.depth);
+        
+        const rail1 = new THREE.Mesh(railGeom, railMat);
+        rail1.position.set(-obs.width / 2, obs.height + 0.6, 0);
+        group.add(rail1);
+        
+        const rail2 = new THREE.Mesh(railGeom, railMat);
+        rail2.position.set(obs.width / 2, obs.height + 0.6, 0);
+        group.add(rail2);
+    }
+    
+    createBuilding(group, obs) {
+        // Main building body
+        const buildingGeom = new THREE.BoxGeometry(obs.width, obs.height, obs.depth);
+        const buildingMat = new THREE.MeshPhongMaterial({ 
+            color: 0x556677,
+            shininess: 15
+        });
+        const building = new THREE.Mesh(buildingGeom, buildingMat);
+        building.position.y = obs.height / 2;
+        building.castShadow = true;
+        building.receiveShadow = true;
+        group.add(building);
+        
+        // Windows
+        const windowMat = new THREE.MeshPhongMaterial({ 
+            color: 0x88aacc,
+            emissive: 0x223344,
+            shininess: 80
+        });
+        
+        const windowWidth = 1.2;
+        const windowHeight = 1.5;
+        const windowsPerSide = Math.floor(obs.width / 4);
+        
+        for (let i = 0; i < windowsPerSide; i++) {
+            const x = -obs.width / 2 + 2 + i * 4;
+            
+            // Front windows
+            const windowGeom = new THREE.BoxGeometry(windowWidth, windowHeight, 0.1);
+            const win1 = new THREE.Mesh(windowGeom, windowMat);
+            win1.position.set(x, obs.height * 0.4, obs.depth / 2 + 0.05);
+            group.add(win1);
+            
+            const win2 = new THREE.Mesh(windowGeom, windowMat);
+            win2.position.set(x, obs.height * 0.7, obs.depth / 2 + 0.05);
+            group.add(win2);
+            
+            // Back windows
+            const win3 = new THREE.Mesh(windowGeom, windowMat);
+            win3.position.set(x, obs.height * 0.4, -obs.depth / 2 - 0.05);
+            group.add(win3);
+            
+            const win4 = new THREE.Mesh(windowGeom, windowMat);
+            win4.position.set(x, obs.height * 0.7, -obs.depth / 2 - 0.05);
+            group.add(win4);
+        }
+        
+        // Roof detail
+        const roofGeom = new THREE.BoxGeometry(obs.width + 0.5, 0.4, obs.depth + 0.5);
+        const roofMat = new THREE.MeshPhongMaterial({ color: 0x445566 });
+        const roof = new THREE.Mesh(roofGeom, roofMat);
+        roof.position.y = obs.height + 0.2;
+        roof.castShadow = true;
+        group.add(roof);
     }
     
     createDecorations() {
@@ -190,26 +358,48 @@ class GameMap {
     getMapObstacles() {
         const obstacles = {
             sandbox: [
-                { x: 0, z: 0, width: 10, height: 5, depth: 10 },
-                { x: -22, z: -22, width: 8, height: 4, depth: 8 },
-                { x: 22, z: -22, width: 8, height: 4, depth: 8 },
-                { x: -22, z: 22, width: 8, height: 4, depth: 8 },
-                { x: 22, z: 22, width: 8, height: 4, depth: 8 },
-                { x: -35, z: 0, width: 5, height: 3, depth: 12 },
-                { x: 35, z: 0, width: 5, height: 3, depth: 12 }
+                { x: 0, z: 0, width: 10, height: 5, depth: 10, type: 'box' },
+                { x: -22, z: -22, width: 8, height: 4, depth: 8, type: 'box' },
+                { x: 22, z: -22, width: 8, height: 4, depth: 8, type: 'box' },
+                { x: -22, z: 22, width: 8, height: 4, depth: 8, type: 'box' },
+                { x: 22, z: 22, width: 8, height: 4, depth: 8, type: 'box' },
+                { x: -35, z: 0, width: 5, height: 3, depth: 12, type: 'box' },
+                { x: 35, z: 0, width: 5, height: 3, depth: 12, type: 'box' },
+                { x: 0, z: -35, width: 12, height: 3, depth: 8, type: 'ramp' },
+                { x: 0, z: 35, width: 12, height: 3, depth: 8, type: 'ramp' }
             ],
             silence: [
-                { x: -28, z: -18, width: 12, height: 10, depth: 12 },
-                { x: 28, z: -18, width: 12, height: 10, depth: 12 },
-                { x: 0, z: 0, width: 14, height: 12, depth: 14 },
-                { x: -28, z: 18, width: 8, height: 6, depth: 8 },
-                { x: 28, z: 18, width: 8, height: 6, depth: 8 }
+                { x: -28, z: -18, width: 12, height: 10, depth: 12, type: 'building' },
+                { x: 28, z: -18, width: 12, height: 10, depth: 12, type: 'building' },
+                { x: 0, z: 0, width: 14, height: 12, depth: 14, type: 'building' },
+                { x: -28, z: 18, width: 8, height: 6, depth: 8, type: 'building' },
+                { x: 28, z: 18, width: 8, height: 6, depth: 8, type: 'building' },
+                { x: -45, z: 0, width: 10, height: 4, depth: 6, type: 'ramp' },
+                { x: 45, z: 0, width: 10, height: 4, depth: 6, type: 'ramp' }
             ],
             kungur: [
-                { x: -22, z: 0, width: 14, height: 4, depth: 10 },
-                { x: 22, z: 0, width: 14, height: 4, depth: 10 },
-                { x: 0, z: -22, width: 18, height: 6, depth: 18 },
-                { x: 0, z: 22, width: 10, height: 3, depth: 10 }
+                { x: -22, z: 0, width: 14, height: 4, depth: 10, type: 'ramp' },
+                { x: 22, z: 0, width: 14, height: 4, depth: 10, type: 'ramp' },
+                { x: 0, z: -22, width: 18, height: 6, depth: 18, type: 'platform' },
+                { x: 0, z: 22, width: 10, height: 3, depth: 10, type: 'platform' },
+                { x: -35, z: -35, width: 6, height: 2, depth: 8, type: 'ramp' },
+                { x: 35, z: 35, width: 6, height: 2, depth: 8, type: 'ramp' }
+            ],
+            island: [
+                { x: 0, z: 0, width: 12, height: 6, depth: 12, type: 'platform' },
+                { x: -18, z: -18, width: 6, height: 3, depth: 6, type: 'box' },
+                { x: 18, z: 18, width: 6, height: 3, depth: 6, type: 'box' },
+                { x: -25, z: 15, width: 8, height: 4, depth: 5, type: 'ramp' },
+                { x: 25, z: -15, width: 8, height: 4, depth: 5, type: 'ramp' }
+            ],
+            polygon: [
+                { x: 0, z: 0, width: 8, height: 8, depth: 8, type: 'building' },
+                { x: -15, z: -15, width: 5, height: 4, depth: 5, type: 'box' },
+                { x: 15, z: -15, width: 5, height: 4, depth: 5, type: 'box' },
+                { x: -15, z: 15, width: 5, height: 4, depth: 5, type: 'box' },
+                { x: 15, z: 15, width: 5, height: 4, depth: 5, type: 'box' },
+                { x: -25, z: 0, width: 8, height: 3, depth: 5, type: 'ramp' },
+                { x: 25, z: 0, width: 8, height: 3, depth: 5, type: 'ramp' }
             ]
         };
         return obstacles[this.mapName] || obstacles.sandbox;

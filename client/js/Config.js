@@ -134,12 +134,12 @@ const CONFIG = {
     // Team colors
     TEAM_COLORS: { red: 0xff4444, blue: 0x4444ff, none: 0x44ff44 },
     // Camera - More responsive and closer to action
-    CAMERA_HEIGHT: 8,
-    CAMERA_DISTANCE: 14,
+    CAMERA_HEIGHT: 10,
+    CAMERA_DISTANCE: 16,
     CAMERA_ANGLE: Math.PI / 7,
-    CAMERA_SMOOTHING: 0.18,
-    CAMERA_LOOK_AHEAD: 6,
-    CAMERA_FOV: 75,
+    CAMERA_SMOOTHING: 0.15,
+    CAMERA_LOOK_AHEAD: 8,
+    CAMERA_FOV: 70,
     CAMERA_SHAKE_MULTIPLIER: 1.0,
     // Gameplay settings
     HITBOX_MULTIPLIER: 1.0,

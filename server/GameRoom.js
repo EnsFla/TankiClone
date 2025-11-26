@@ -555,14 +555,16 @@ class GameRoom {
         }
     }
 
-    // Ray-cast from start to end to find wall collision with finer stepping
+    // Ray-cast from start to end to find wall collision with very fine stepping
     raycastProjectileWall(startX, startZ, endX, endZ, proj) {
         const mapData = MAPS[this.map] || MAPS.sandbox;
         const dx = endX - startX;
         const dz = endZ - startZ;
         const dist = Math.sqrt(dx * dx + dz * dz);
-        // Use finer step size (0.2 units) to prevent tunneling through walls
-        const steps = Math.max(Math.ceil(dist / 0.2), 1);
+        // Use very fine step size (0.1 units) to prevent tunneling through walls
+        // For fast projectiles this is critical
+        const stepSize = 0.1;
+        const steps = Math.max(Math.ceil(dist / stepSize), 1);
         
         for (let step = 1; step <= steps; step++) {
             const t = step / steps;
