@@ -3,6 +3,8 @@ const Player = require('./Player');
 // Collision constants
 const PROJECTILE_COLLISION_BUFFER = 0.2;
 const TANK_HITBOX_MULTIPLIER = 1.0;
+const MUZZLE_OFFSET = 2.5;  // Distance from tank center to muzzle
+const TWINS_BARREL_OFFSET = 0.3;  // Lateral offset for dual barrel weapons
 
 const HULLS = {
     wasp: { hp: 120, speed: 14, turnSpeed: 4.0, acceleration: 25, width: 1.6, length: 2.2, height: 0.5, armor: 0.9 },
@@ -253,10 +255,11 @@ class GameRoom {
         const turretData = TURRETS[player.turret];
         const now = Date.now();
         
-        // Check fire rate
+        // Check fire rate - initialize spinupProgress if undefined
         let fireRate = turretData.fireRate;
-        if (turretData.special === 'spinup' && player.spinupProgress) {
-            fireRate = Math.max(turretData.maxFireRate, fireRate * (1 - player.spinupProgress * 0.5));
+        if (turretData.special === 'spinup') {
+            const spinup = player.spinupProgress || 0;
+            fireRate = Math.max(turretData.maxFireRate, fireRate * (1 - spinup * 0.5));
         }
         if (now - player.lastShot < fireRate * 1000) return null;
         player.lastShot = now;
@@ -276,7 +279,7 @@ class GameRoom {
         
         const projectile = {
             id: this.projectileIdCounter++, ownerId: playerId, ownerTeam: player.team, turret: player.turret,
-            x: player.x + Math.sin(player.turretRotation) * 2.5, y: 1.5, z: player.z + Math.cos(player.turretRotation) * 2.5,
+            x: player.x + Math.sin(player.turretRotation) * MUZZLE_OFFSET, y: 1.5, z: player.z + Math.cos(player.turretRotation) * MUZZLE_OFFSET,
             vx: Math.sin(player.turretRotation) * turretData.projectileSpeed, vz: Math.cos(player.turretRotation) * turretData.projectileSpeed,
             rotation: player.turretRotation, damage: damage, range: turretData.range, traveled: 0,
             type: turretData.type, splash: turretData.splash, special: turretData.special, 
@@ -284,7 +287,7 @@ class GameRoom {
             charge: data.charge || 0, isCrit: isCrit
         };
         
-        // Twins fires 2 projectiles
+        // Twins fires 2 projectiles with lateral offset
         if (turretData.special === 'double') {
             const spread = turretData.spread || 0.05;
             projectile.vx = Math.sin(player.turretRotation - spread) * turretData.projectileSpeed;
@@ -293,8 +296,8 @@ class GameRoom {
             const proj2 = { ...projectile, id: this.projectileIdCounter++ };
             proj2.vx = Math.sin(player.turretRotation + spread) * turretData.projectileSpeed;
             proj2.vz = Math.cos(player.turretRotation + spread) * turretData.projectileSpeed;
-            proj2.x = player.x + Math.sin(player.turretRotation) * 2.5 + Math.sin(player.turretRotation + Math.PI/2) * 0.3;
-            proj2.z = player.z + Math.cos(player.turretRotation) * 2.5 + Math.cos(player.turretRotation + Math.PI/2) * 0.3;
+            proj2.x = player.x + Math.sin(player.turretRotation) * MUZZLE_OFFSET + Math.sin(player.turretRotation + Math.PI/2) * TWINS_BARREL_OFFSET;
+            proj2.z = player.z + Math.cos(player.turretRotation) * MUZZLE_OFFSET + Math.cos(player.turretRotation + Math.PI/2) * TWINS_BARREL_OFFSET;
             this.projectiles.push(proj2);
         }
         
@@ -426,9 +429,17 @@ class GameRoom {
             
             if (isHealing) { target.hp = Math.min(target.maxHp, target.hp + turretData.healAmount * 0.05); }
             else {
-                this.damagePlayer(target, player, turretData.damage * 0.05);
-                if (turretData.special === 'burn') { target.burnUntil = now + turretData.burnDuration * 1000; target.burnDamage = turretData.burnDamage; target.burnSource = player.id; }
-                if (turretData.special === 'slow') { target.slowUntil = now + turretData.slowDuration * 1000; }
+                this.damagePlayer(target, player, turretData.damage * damageMultiplier * 0.05);
+                if (turretData.special === 'burn') { 
+                    target.burnUntil = now + turretData.burnDuration * 1000; 
+                    target.burnDamage = turretData.burnDamage; 
+                    target.burnSource = player.id; 
+                }
+                if (turretData.special === 'slow') { 
+                    target.slowUntil = now + turretData.slowDuration * 1000; 
+                    // Apply freeze damage amplification
+                    target.freezeDamageAmp = turretData.damageAmp || 1.0;
+                }
             }
         });
     }
@@ -514,6 +525,10 @@ class GameRoom {
             if (Math.abs(proj.x) > halfW || Math.abs(proj.z) > halfH) {
                 if (proj.special === 'bounce' && proj.bounceCount > 0) {
                     proj.bounceCount--;
+                    // Apply bounce damage bonus
+                    if (proj.bounceBonus) {
+                        proj.damage *= (1 + proj.bounceBonus);
+                    }
                     if (Math.abs(proj.x) > halfW) {
                         proj.vx = -proj.vx;
                         proj.x = Math.sign(proj.x) * halfW;
@@ -533,7 +548,7 @@ class GameRoom {
             const hitPlayer = this.checkProjectilePlayerCollision(proj);
             if (hitPlayer) {
                 const owner = this.players.get(proj.ownerId);
-                this.damagePlayer(hitPlayer, owner, proj.damage);
+                this.damagePlayer(hitPlayer, owner, proj.damage, proj.isCrit);
                 if (proj.splash > 0) this.applySplashDamage(proj, hitPlayer.id);
                 if (proj.special !== 'pierce') this.projectiles.splice(i, 1);
             }
