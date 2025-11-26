@@ -278,15 +278,15 @@ class Game {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return;
         
-        // Calculate look-ahead based on player movement direction
-        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 5;
-        const lookAheadX = Math.sin(localPlayer.rotation) * lookAhead;
-        const lookAheadZ = Math.cos(localPlayer.rotation) * lookAhead;
+        // Camera follows turret direction - positioned behind where the turret is aiming
+        const turretAngle = localPlayer.turretRotation || 0;
+        const cameraDistance = CONFIG.CAMERA_DISTANCE || 22;
+        const cameraHeight = CONFIG.CAMERA_HEIGHT || 18;
         
-        // Target position with look-ahead
-        const targetX = localPlayer.x + lookAheadX * 0.3;
-        const targetZ = localPlayer.z + CONFIG.CAMERA_DISTANCE + lookAheadZ * 0.3;
-        const targetY = CONFIG.CAMERA_HEIGHT;
+        // Camera positioned behind the turret direction
+        const targetX = localPlayer.x - Math.sin(turretAngle) * cameraDistance;
+        const targetZ = localPlayer.z - Math.cos(turretAngle) * cameraDistance;
+        const targetY = cameraHeight;
         
         // Smooth camera movement with configurable smoothing
         const smoothing = CONFIG.CAMERA_SMOOTHING || 0.08;
@@ -294,7 +294,7 @@ class Game {
         this.cameraTarget.y += (targetY - this.cameraTarget.y) * smoothing;
         this.cameraTarget.z += (targetZ - this.cameraTarget.z) * smoothing;
         
-        // Smooth look-at target
+        // Camera looks at tank position (where turret is aiming from)
         this.cameraLookAt.x += (localPlayer.x - this.cameraLookAt.x) * smoothing * 1.5;
         this.cameraLookAt.z += (localPlayer.z - this.cameraLookAt.z) * smoothing * 1.5;
         

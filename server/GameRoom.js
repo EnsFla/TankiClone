@@ -249,6 +249,10 @@ class GameRoom {
             while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
             while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
             if (Math.abs(angleDiff) > Math.PI / 6) return;
+            
+            // Check if there's a wall between player and target
+            if (this.isLineBlockedByWall(player.x, player.z, target.x, target.z)) return;
+            
             if (isHealing) { target.hp = Math.min(target.maxHp, target.hp + turretData.healAmount * 0.05); }
             else {
                 this.damagePlayer(target, player, turretData.damage * 0.05);
@@ -256,6 +260,32 @@ class GameRoom {
                 if (turretData.special === 'slow') { target.slowUntil = now + turretData.slowDuration * 1000; }
             }
         });
+    }
+    
+    // Check if a line from point A to point B is blocked by a wall/obstacle
+    isLineBlockedByWall(startX, startZ, endX, endZ) {
+        const mapData = MAPS[this.map] || MAPS.sandbox;
+        const dx = endX - startX;
+        const dz = endZ - startZ;
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        const steps = Math.max(Math.ceil(dist / 1.0), 2);
+        
+        for (let step = 1; step < steps; step++) {
+            const t = step / steps;
+            const checkX = startX + dx * t;
+            const checkZ = startZ + dz * t;
+            
+            for (const obs of mapData.obstacles) {
+                const halfW = obs.width / 2;
+                const halfD = obs.depth / 2;
+                
+                if (checkX > obs.x - halfW && checkX < obs.x + halfW && 
+                    checkZ > obs.z - halfD && checkZ < obs.z + halfD) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     checkObstacleCollision(x, z, hull) {
@@ -271,13 +301,64 @@ class GameRoom {
     updateProjectiles(deltaTime) {
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const proj = this.projectiles[i];
-            proj.x += proj.vx * deltaTime; proj.z += proj.vz * deltaTime;
-            proj.traveled += Math.sqrt(proj.vx * proj.vx + proj.vz * proj.vz) * deltaTime;
-            if (proj.traveled > proj.range) { this.projectiles.splice(i, 1); continue; }
-            if (this.checkProjectileObstacleCollision(proj)) {
-                if (proj.special === 'bounce' && proj.bounceCount > 0) { proj.bounceCount--; proj.vx = -proj.vx; proj.rotation = Math.atan2(proj.vx, proj.vz); }
-                else { if (proj.splash > 0) this.applySplashDamage(proj); this.projectiles.splice(i, 1); continue; }
+            const prevX = proj.x, prevZ = proj.z;
+            
+            // Calculate movement
+            const moveX = proj.vx * deltaTime;
+            const moveZ = proj.vz * deltaTime;
+            
+            // Use ray casting to check for wall collision along the path
+            const wallHit = this.raycastProjectileWall(prevX, prevZ, prevX + moveX, prevZ + moveZ, proj);
+            
+            if (wallHit) {
+                if (proj.special === 'bounce' && proj.bounceCount > 0) {
+                    proj.bounceCount--;
+                    // Bounce off the wall
+                    if (wallHit.normal === 'x') {
+                        proj.vx = -proj.vx;
+                    } else {
+                        proj.vz = -proj.vz;
+                    }
+                    proj.x = wallHit.x;
+                    proj.z = wallHit.z;
+                    proj.rotation = Math.atan2(proj.vx, proj.vz);
+                } else {
+                    if (proj.splash > 0) this.applySplashDamage(proj);
+                    this.projectiles.splice(i, 1);
+                    continue;
+                }
+            } else {
+                proj.x += moveX;
+                proj.z += moveZ;
             }
+            
+            proj.traveled += Math.sqrt(moveX * moveX + moveZ * moveZ);
+            if (proj.traveled > proj.range) { this.projectiles.splice(i, 1); continue; }
+            
+            // Check map boundary collision
+            const mapData = MAPS[this.map] || MAPS.sandbox;
+            const halfW = mapData.width / 2 - 1;
+            const halfH = mapData.height / 2 - 1;
+            
+            if (Math.abs(proj.x) > halfW || Math.abs(proj.z) > halfH) {
+                if (proj.special === 'bounce' && proj.bounceCount > 0) {
+                    proj.bounceCount--;
+                    if (Math.abs(proj.x) > halfW) {
+                        proj.vx = -proj.vx;
+                        proj.x = Math.sign(proj.x) * halfW;
+                    }
+                    if (Math.abs(proj.z) > halfH) {
+                        proj.vz = -proj.vz;
+                        proj.z = Math.sign(proj.z) * halfH;
+                    }
+                    proj.rotation = Math.atan2(proj.vx, proj.vz);
+                } else {
+                    if (proj.splash > 0) this.applySplashDamage(proj);
+                    this.projectiles.splice(i, 1);
+                    continue;
+                }
+            }
+            
             const hitPlayer = this.checkProjectilePlayerCollision(proj);
             if (hitPlayer) {
                 const owner = this.players.get(proj.ownerId);
@@ -285,15 +366,49 @@ class GameRoom {
                 if (proj.splash > 0) this.applySplashDamage(proj, hitPlayer.id);
                 if (proj.special !== 'pierce') this.projectiles.splice(i, 1);
             }
-            const mapData = MAPS[this.map] || MAPS.sandbox;
-            if (Math.abs(proj.x) > mapData.width / 2 || Math.abs(proj.z) > mapData.height / 2) this.projectiles.splice(i, 1);
         }
+    }
+
+    // Ray-cast from start to end to find wall collision
+    raycastProjectileWall(startX, startZ, endX, endZ, proj) {
+        const mapData = MAPS[this.map] || MAPS.sandbox;
+        const dx = endX - startX;
+        const dz = endZ - startZ;
+        const steps = Math.max(Math.ceil(Math.sqrt(dx * dx + dz * dz) / 0.5), 1);
+        
+        for (let step = 1; step <= steps; step++) {
+            const t = step / steps;
+            const checkX = startX + dx * t;
+            const checkZ = startZ + dz * t;
+            
+            for (const obs of mapData.obstacles) {
+                const halfW = obs.width / 2 + 0.3; // Add small buffer for projectile size
+                const halfD = obs.depth / 2 + 0.3;
+                
+                if (checkX > obs.x - halfW && checkX < obs.x + halfW && 
+                    checkZ > obs.z - halfD && checkZ < obs.z + halfD) {
+                    // Determine which side was hit for bounce
+                    const prevT = (step - 1) / steps;
+                    const prevX = startX + dx * prevT;
+                    const prevZ = startZ + dz * prevT;
+                    
+                    // Determine normal based on which side we entered from
+                    let normal = 'x';
+                    const distX = Math.min(Math.abs(checkX - (obs.x - halfW)), Math.abs(checkX - (obs.x + halfW)));
+                    const distZ = Math.min(Math.abs(checkZ - (obs.z - halfD)), Math.abs(checkZ - (obs.z + halfD)));
+                    if (distZ < distX) normal = 'z';
+                    
+                    return { x: prevX, z: prevZ, normal };
+                }
+            }
+        }
+        return null;
     }
 
     checkProjectileObstacleCollision(proj) {
         const mapData = MAPS[this.map] || MAPS.sandbox;
         for (const obs of mapData.obstacles) {
-            const halfW = obs.width / 2, halfD = obs.depth / 2;
+            const halfW = obs.width / 2 + 0.2, halfD = obs.depth / 2 + 0.2;
             if (proj.x > obs.x - halfW && proj.x < obs.x + halfW && proj.z > obs.z - halfD && proj.z < obs.z + halfD) return true;
         }
         return false;
@@ -306,7 +421,9 @@ class GameRoom {
             const hull = HULLS[player.hull];
             const dx = proj.x - player.x, dz = proj.z - player.z;
             const dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist < Math.max(hull.width, hull.length) / 2 + 0.5) return player;
+            // Use proper hitbox size based on hull dimensions
+            const hitboxRadius = (hull.width + hull.length) / 4 + 0.3;
+            if (dist < hitboxRadius) return player;
         }
         return null;
     }
