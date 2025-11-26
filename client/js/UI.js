@@ -213,10 +213,12 @@ class UI {
             item.className = 'room-item';
             const modeNames = { dm: 'Deathmatch', tdm: 'Team DM', ctf: 'CTF' };
             const mapNames = { sandbox: 'Sandbox', silence: 'Silence', kungur: 'Kungur' };
+            const mapDisplay = mapNames[room.map] || this.escapeHtml(room.map);
+            const modeDisplay = modeNames[room.mode] || this.escapeHtml(room.mode);
             item.innerHTML = `
                 <div class="room-info">
                     <div class="room-name">${this.escapeHtml(room.name)}</div>
-                    <div class="room-details">${mapNames[room.map] || room.map} - ${modeNames[room.mode] || room.mode}</div>
+                    <div class="room-details">${mapDisplay} - ${modeDisplay}</div>
                 </div>
                 <div class="room-players">${room.players}/${room.maxPlayers}</div>
             `;
@@ -237,7 +239,9 @@ class UI {
             const div = document.createElement('div');
             div.className = 'waiting-player';
             if (player.ready) div.classList.add('ready');
-            if (player.team !== 'none') div.classList.add(player.team);
+            if (player.team === 'red' || player.team === 'blue') {
+                div.classList.add(player.team);
+            }
             div.textContent = player.name || 'Tank';
             container.appendChild(div);
         });
@@ -408,7 +412,9 @@ class UI {
         const sorted = Object.values(players).sort((a, b) => b.kills - a.kills);
         sorted.forEach(player => {
             const row = document.createElement('tr');
-            if (player.team !== 'none') row.className = player.team;
+            if (player.team === 'red' || player.team === 'blue') {
+                row.className = player.team;
+            }
             row.innerHTML = `<td>${this.escapeHtml(player.name)}</td><td>${player.kills}</td><td>${player.deaths}</td>`;
             this.elements.scoreboardBody.appendChild(row);
         });
