@@ -24,12 +24,21 @@ const CONFIG = {
         kungur: { width: 100, height: 100, name: 'Kungur', groundColor: 0x5c4a3d }
     },
     TEAM_COLORS: { red: 0xff4444, blue: 0x4444ff, none: 0x44ff44 },
-    // Improved camera settings for better gameplay feel
-    CAMERA_HEIGHT: 18,
-    CAMERA_DISTANCE: 22,
-    CAMERA_ANGLE: Math.PI / 5,
-    CAMERA_SMOOTHING: 0.08,
-    CAMERA_LOOK_AHEAD: 5,
+    // Camera settings - Third person shooter style
+    CAMERA_HEIGHT: 12,
+    CAMERA_DISTANCE: 18,
+    CAMERA_ANGLE: Math.PI / 6,
+    CAMERA_SMOOTHING: 0.12,
+    CAMERA_LOOK_AHEAD: 8,
+    CAMERA_FOV: 65,
+    // Hitbox settings
+    HITBOX_MULTIPLIER: 1.0,
+    // QoL settings
+    SHOW_FPS: true,
+    SHOW_CROSSHAIR: true,
+    SHOW_DAMAGE_NUMBERS: true,
+    SHOW_HIT_MARKERS: true,
+    // Audio
     INTERPOLATION_DELAY: 100,
     MASTER_VOLUME: 0.5,
     SFX_VOLUME: 0.7,

@@ -1,8 +1,8 @@
 const Player = require('./Player');
 
 // Collision constants
-const PROJECTILE_COLLISION_BUFFER = 0.3;
-const TANK_HITBOX_PADDING = 0.3;
+const PROJECTILE_COLLISION_BUFFER = 0.2;
+const TANK_HITBOX_MULTIPLIER = 1.0;
 
 const HULLS = {
     wasp: { hp: 100, speed: 12, turnSpeed: 3.5, width: 1.8, length: 2.5, height: 0.6 },
@@ -430,11 +430,25 @@ class GameRoom {
             if (id === proj.ownerId || !player.alive) continue;
             if (proj.ownerTeam !== 'none' && proj.ownerTeam === player.team) continue;
             const hull = HULLS[player.hull];
-            const dx = proj.x - player.x, dz = proj.z - player.z;
-            const dist = Math.sqrt(dx * dx + dz * dz);
-            // Use proper hitbox size based on hull dimensions (average of width/length for circular hitbox)
-            const hitboxRadius = Math.max(hull.width, hull.length) / 2 + TANK_HITBOX_PADDING;
-            if (dist < hitboxRadius) return player;
+            
+            // Use oriented bounding box (OBB) for accurate hitbox
+            // Transform projectile position to tank's local space
+            const dx = proj.x - player.x;
+            const dz = proj.z - player.z;
+            
+            // Rotate the projectile position into tank's local coordinate system
+            const cos = Math.cos(-player.rotation);
+            const sin = Math.sin(-player.rotation);
+            const localX = dx * cos - dz * sin;
+            const localZ = dx * sin + dz * cos;
+            
+            // Check if point is inside the oriented box
+            const halfWidth = (hull.width / 2) * TANK_HITBOX_MULTIPLIER;
+            const halfLength = (hull.length / 2) * TANK_HITBOX_MULTIPLIER;
+            
+            if (Math.abs(localX) < halfWidth && Math.abs(localZ) < halfLength) {
+                return player;
+            }
         }
         return null;
     }

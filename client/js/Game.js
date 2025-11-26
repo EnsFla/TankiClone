@@ -19,7 +19,7 @@ class Game {
         this.mouse = { x: 0, y: 0, down: false };
         this.lastFrameTime = 0;
         this.lastInputSent = 0;
-        this.inputInterval = 1000 / 60;  // Higher input rate for smoother feel
+        this.inputInterval = 1000 / 60;
         this.running = false;
         this.chatOpen = false;
         this.shaftCharging = false;
@@ -29,24 +29,27 @@ class Game {
         this.cameraLookAt = { x: 0, y: 0, z: 0 };
         // Screen shake
         this.screenShake = { intensity: 0, decay: 0.9 };
+        // QoL features
+        this.frameCount = 0;
+        this.fpsUpdateTime = 0;
+        this.currentFps = 0;
+        this.damageNumbers = [];
+        this.hitMarkers = [];
+        this.lastDamageTime = {};
     }
 
     init() {
         this.scene = new THREE.Scene();
-        // Better sky color
         this.scene.background = new THREE.Color(0x87ceeb);
-        // Improved fog for depth perception
         this.scene.fog = new THREE.Fog(0x87ceeb, 80, 200);
         
-        // Better lighting setup
+        // Lighting setup
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambientLight);
         
-        // Hemisphere light for natural outdoor feel
         const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3d5c3d, 0.4);
         this.scene.add(hemiLight);
         
-        // Main directional light (sun)
         const directionalLight = new THREE.DirectionalLight(0xfff5e6, 1.0);
         directionalLight.position.set(30, 80, 40);
         directionalLight.castShadow = true;
@@ -61,13 +64,12 @@ class Game {
         directionalLight.shadow.bias = -0.0005;
         this.scene.add(directionalLight);
         
-        // Fill light from opposite side
         const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
         fillLight.position.set(-30, 40, -30);
         this.scene.add(fillLight);
         
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(CONFIG.CAMERA_FOV || 65, aspect, 0.1, 1000);
         this.camera.position.set(0, CONFIG.CAMERA_HEIGHT, CONFIG.CAMERA_DISTANCE);
         this.camera.lookAt(0, 0, 0);
         
@@ -83,7 +85,205 @@ class Game {
         this.effects = new Effects(this.scene);
         this.audio = new Audio();
         this.setupEventListeners();
+        this.createCrosshair();
         window.addEventListener('resize', () => this.onResize());
+    }
+    
+    createCrosshair() {
+        // Create crosshair element
+        if (!document.getElementById('crosshair')) {
+            const crosshair = document.createElement('div');
+            crosshair.id = 'crosshair';
+            crosshair.innerHTML = `
+                <div class="crosshair-line crosshair-top"></div>
+                <div class="crosshair-line crosshair-right"></div>
+                <div class="crosshair-line crosshair-bottom"></div>
+                <div class="crosshair-line crosshair-left"></div>
+                <div class="crosshair-dot"></div>
+            `;
+            document.body.appendChild(crosshair);
+            
+            // Add crosshair styles
+            const style = document.createElement('style');
+            style.textContent = `
+                #crosshair {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    pointer-events: none;
+                    z-index: 1000;
+                    display: none;
+                }
+                .crosshair-line {
+                    position: absolute;
+                    background: rgba(0, 255, 136, 0.9);
+                    box-shadow: 0 0 4px rgba(0, 255, 136, 0.5);
+                }
+                .crosshair-top, .crosshair-bottom {
+                    width: 2px;
+                    height: 12px;
+                    left: -1px;
+                }
+                .crosshair-top { top: -20px; }
+                .crosshair-bottom { bottom: -20px; }
+                .crosshair-left, .crosshair-right {
+                    width: 12px;
+                    height: 2px;
+                    top: -1px;
+                }
+                .crosshair-left { left: -20px; }
+                .crosshair-right { right: -20px; }
+                .crosshair-dot {
+                    width: 4px;
+                    height: 4px;
+                    background: rgba(0, 255, 136, 0.9);
+                    border-radius: 50%;
+                    position: absolute;
+                    top: -2px;
+                    left: -2px;
+                    box-shadow: 0 0 6px rgba(0, 255, 136, 0.8);
+                }
+                #hit-marker {
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    pointer-events: none;
+                    z-index: 1001;
+                    opacity: 0;
+                    transition: opacity 0.1s;
+                }
+                #hit-marker.active {
+                    opacity: 1;
+                }
+                .hit-marker-line {
+                    position: absolute;
+                    background: #ff4444;
+                    box-shadow: 0 0 4px rgba(255, 68, 68, 0.8);
+                }
+                .hit-marker-line:nth-child(1) { width: 15px; height: 2px; transform: rotate(45deg); top: -1px; left: -7px; }
+                .hit-marker-line:nth-child(2) { width: 15px; height: 2px; transform: rotate(-45deg); top: -1px; left: -7px; }
+                #fps-counter {
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    color: #00ff88;
+                    font-family: monospace;
+                    font-size: 14px;
+                    z-index: 1000;
+                    text-shadow: 0 0 4px rgba(0, 255, 136, 0.5);
+                }
+                #weapon-info {
+                    position: fixed;
+                    bottom: 100px;
+                    right: 20px;
+                    color: #fff;
+                    font-family: Arial, sans-serif;
+                    font-size: 14px;
+                    z-index: 1000;
+                    text-align: right;
+                    background: rgba(0, 0, 0, 0.5);
+                    padding: 10px 15px;
+                    border-radius: 8px;
+                    border: 1px solid rgba(0, 255, 136, 0.3);
+                }
+                .damage-number {
+                    position: fixed;
+                    color: #ff4444;
+                    font-weight: bold;
+                    font-size: 18px;
+                    pointer-events: none;
+                    z-index: 1001;
+                    text-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+                    animation: damageFloat 1s ease-out forwards;
+                }
+                @keyframes damageFloat {
+                    0% { opacity: 1; transform: translateY(0); }
+                    100% { opacity: 0; transform: translateY(-40px); }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Create hit marker
+            const hitMarker = document.createElement('div');
+            hitMarker.id = 'hit-marker';
+            hitMarker.innerHTML = `<div class="hit-marker-line"></div><div class="hit-marker-line"></div>`;
+            document.body.appendChild(hitMarker);
+            
+            // Create FPS counter
+            const fpsCounter = document.createElement('div');
+            fpsCounter.id = 'fps-counter';
+            document.body.appendChild(fpsCounter);
+            
+            // Create weapon info
+            const weaponInfo = document.createElement('div');
+            weaponInfo.id = 'weapon-info';
+            document.body.appendChild(weaponInfo);
+        }
+    }
+    
+    showCrosshair(show) {
+        const crosshair = document.getElementById('crosshair');
+        if (crosshair) {
+            crosshair.style.display = show ? 'block' : 'none';
+        }
+    }
+    
+    showHitMarker() {
+        const hitMarker = document.getElementById('hit-marker');
+        if (hitMarker) {
+            hitMarker.classList.add('active');
+            setTimeout(() => hitMarker.classList.remove('active'), 150);
+        }
+    }
+    
+    showDamageNumber(damage, x, y, z) {
+        if (!CONFIG.SHOW_DAMAGE_NUMBERS) return;
+        const vector = new THREE.Vector3(x, y + 2, z);
+        vector.project(this.camera);
+        const screenX = (vector.x * 0.5 + 0.5) * this.canvas.clientWidth;
+        const screenY = (-vector.y * 0.5 + 0.5) * this.canvas.clientHeight;
+        
+        const damageNum = document.createElement('div');
+        damageNum.className = 'damage-number';
+        damageNum.textContent = '-' + Math.round(damage);
+        damageNum.style.left = screenX + 'px';
+        damageNum.style.top = screenY + 'px';
+        document.body.appendChild(damageNum);
+        setTimeout(() => damageNum.remove(), 1000);
+    }
+    
+    updateFPS(deltaTime) {
+        this.frameCount++;
+        this.fpsUpdateTime += deltaTime;
+        if (this.fpsUpdateTime >= 0.5) {
+            this.currentFps = Math.round(this.frameCount / this.fpsUpdateTime);
+            this.frameCount = 0;
+            this.fpsUpdateTime = 0;
+            const fpsCounter = document.getElementById('fps-counter');
+            if (fpsCounter && CONFIG.SHOW_FPS) {
+                fpsCounter.textContent = this.currentFps + ' FPS';
+            }
+        }
+    }
+    
+    updateWeaponInfo() {
+        const weaponInfo = document.getElementById('weapon-info');
+        if (!weaponInfo) return;
+        const localPlayer = this.getLocalPlayer();
+        if (!localPlayer) {
+            weaponInfo.style.display = 'none';
+            return;
+        }
+        weaponInfo.style.display = 'block';
+        const turretConfig = CONFIG.TURRETS[localPlayer.turret];
+        if (turretConfig) {
+            weaponInfo.innerHTML = `
+                <div style="color: #00ff88; font-weight: bold;">${turretConfig.name}</div>
+                <div style="font-size: 12px; opacity: 0.8;">${turretConfig.desc}</div>
+            `;
+        }
     }
 
     setupEventListeners() {
@@ -98,6 +298,9 @@ class Game {
             if (this.running && this.canvas.requestPointerLock) {
                 this.canvas.requestPointerLock();
             }
+        });
+        document.addEventListener('pointerlockchange', () => {
+            this.showCrosshair(document.pointerLockElement === this.canvas);
         });
     }
 
@@ -228,6 +431,8 @@ class Game {
         this.effects.update(deltaTime);
         this.updateHUD();
         this.updateMinimap();
+        this.updateFPS(deltaTime);
+        this.updateWeaponInfo();
     }
 
     sendInput() {
@@ -256,6 +461,13 @@ class Game {
     calculateTurretRotation() {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return 0;
+        
+        // When pointer is locked, use center of screen for aiming
+        if (document.pointerLockElement === this.canvas) {
+            // Aim straight ahead in camera direction
+            return localPlayer.turretRotation || 0;
+        }
+        
         const tankPos = new THREE.Vector3(localPlayer.x, 0, localPlayer.z);
         const raycaster = new THREE.Raycaster();
         const mouseNDC = new THREE.Vector2(
@@ -278,25 +490,29 @@ class Game {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return;
         
-        // Camera follows turret direction - positioned behind where the turret is aiming
         const turretAngle = localPlayer.turretRotation || 0;
-        const cameraDistance = CONFIG.CAMERA_DISTANCE || 22;
-        const cameraHeight = CONFIG.CAMERA_HEIGHT || 18;
+        const cameraDistance = CONFIG.CAMERA_DISTANCE || 18;
+        const cameraHeight = CONFIG.CAMERA_HEIGHT || 12;
+        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 8;
         
-        // Camera positioned behind the turret direction
+        // Camera positioned behind the turret direction with slight offset
         const targetX = localPlayer.x - Math.sin(turretAngle) * cameraDistance;
         const targetZ = localPlayer.z - Math.cos(turretAngle) * cameraDistance;
         const targetY = cameraHeight;
         
-        // Smooth camera movement with configurable smoothing
-        const smoothing = CONFIG.CAMERA_SMOOTHING || 0.08;
+        // Calculate look-at point ahead of the tank
+        const lookAtX = localPlayer.x + Math.sin(turretAngle) * lookAhead;
+        const lookAtZ = localPlayer.z + Math.cos(turretAngle) * lookAhead;
+        
+        // Smooth camera movement - faster smoothing for better response
+        const smoothing = CONFIG.CAMERA_SMOOTHING || 0.12;
         this.cameraTarget.x += (targetX - this.cameraTarget.x) * smoothing;
         this.cameraTarget.y += (targetY - this.cameraTarget.y) * smoothing;
         this.cameraTarget.z += (targetZ - this.cameraTarget.z) * smoothing;
         
-        // Camera looks at tank position (where turret is aiming from)
-        this.cameraLookAt.x += (localPlayer.x - this.cameraLookAt.x) * smoothing * 1.5;
-        this.cameraLookAt.z += (localPlayer.z - this.cameraLookAt.z) * smoothing * 1.5;
+        // Look at point slightly ahead of tank
+        this.cameraLookAt.x += (lookAtX - this.cameraLookAt.x) * smoothing * 1.2;
+        this.cameraLookAt.z += (lookAtZ - this.cameraLookAt.z) * smoothing * 1.2;
         
         // Apply screen shake if active
         let shakeX = 0, shakeY = 0;
@@ -311,7 +527,7 @@ class Game {
             this.cameraTarget.y + shakeY,
             this.cameraTarget.z
         );
-        this.camera.lookAt(this.cameraLookAt.x, 1, this.cameraLookAt.z);
+        this.camera.lookAt(this.cameraLookAt.x, 1.5, this.cameraLookAt.z);
     }
     
     addScreenShake(intensity) {
