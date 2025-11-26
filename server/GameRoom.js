@@ -1,5 +1,9 @@
 const Player = require('./Player');
 
+// Collision constants
+const PROJECTILE_COLLISION_BUFFER = 0.3;
+const TANK_HITBOX_PADDING = 0.3;
+
 const HULLS = {
     wasp: { hp: 100, speed: 12, turnSpeed: 3.5, width: 1.8, length: 2.5, height: 0.6 },
     hornet: { hp: 150, speed: 10, turnSpeed: 3.2, width: 2.0, length: 2.8, height: 0.7 },
@@ -382,21 +386,27 @@ class GameRoom {
             const checkZ = startZ + dz * t;
             
             for (const obs of mapData.obstacles) {
-                const halfW = obs.width / 2 + 0.3; // Add small buffer for projectile size
-                const halfD = obs.depth / 2 + 0.3;
+                const halfW = obs.width / 2 + PROJECTILE_COLLISION_BUFFER;
+                const halfD = obs.depth / 2 + PROJECTILE_COLLISION_BUFFER;
                 
                 if (checkX > obs.x - halfW && checkX < obs.x + halfW && 
                     checkZ > obs.z - halfD && checkZ < obs.z + halfD) {
-                    // Determine which side was hit for bounce
+                    // Get position just before collision
                     const prevT = (step - 1) / steps;
                     const prevX = startX + dx * prevT;
                     const prevZ = startZ + dz * prevT;
                     
-                    // Determine normal based on which side we entered from
+                    // Determine wall normal based on entry direction
+                    // Check which axis crossed first by comparing distances
                     let normal = 'x';
-                    const distX = Math.min(Math.abs(checkX - (obs.x - halfW)), Math.abs(checkX - (obs.x + halfW)));
-                    const distZ = Math.min(Math.abs(checkZ - (obs.z - halfD)), Math.abs(checkZ - (obs.z + halfD)));
-                    if (distZ < distX) normal = 'z';
+                    if (Math.abs(dx) > 0.001 && Math.abs(dz) > 0.001) {
+                        // Calculate time to cross each boundary
+                        const txEnter = dx > 0 ? (obs.x - halfW - prevX) / dx : (obs.x + halfW - prevX) / dx;
+                        const tzEnter = dz > 0 ? (obs.z - halfD - prevZ) / dz : (obs.z + halfD - prevZ) / dz;
+                        normal = txEnter > tzEnter ? 'x' : 'z';
+                    } else if (Math.abs(dx) <= 0.001) {
+                        normal = 'z';
+                    }
                     
                     return { x: prevX, z: prevZ, normal };
                 }
@@ -408,7 +418,8 @@ class GameRoom {
     checkProjectileObstacleCollision(proj) {
         const mapData = MAPS[this.map] || MAPS.sandbox;
         for (const obs of mapData.obstacles) {
-            const halfW = obs.width / 2 + 0.2, halfD = obs.depth / 2 + 0.2;
+            const halfW = obs.width / 2 + PROJECTILE_COLLISION_BUFFER;
+            const halfD = obs.depth / 2 + PROJECTILE_COLLISION_BUFFER;
             if (proj.x > obs.x - halfW && proj.x < obs.x + halfW && proj.z > obs.z - halfD && proj.z < obs.z + halfD) return true;
         }
         return false;
@@ -421,8 +432,8 @@ class GameRoom {
             const hull = HULLS[player.hull];
             const dx = proj.x - player.x, dz = proj.z - player.z;
             const dist = Math.sqrt(dx * dx + dz * dz);
-            // Use proper hitbox size based on hull dimensions
-            const hitboxRadius = (hull.width + hull.length) / 4 + 0.3;
+            // Use proper hitbox size based on hull dimensions (average of width/length for circular hitbox)
+            const hitboxRadius = Math.max(hull.width, hull.length) / 2 + TANK_HITBOX_PADDING;
             if (dist < hitboxRadius) return player;
         }
         return null;
