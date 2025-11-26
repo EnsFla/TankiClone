@@ -743,7 +743,7 @@ class Game {
         }
     }
 
-    onPlayerKilled(killer, victim) {
+    onPlayerKilled(killer, victim, data = {}) {
         const victimTank = this.tanks.get(victim.id);
         if (victimTank) {
             this.effects.createExplosion(victimTank.x, 1, victimTank.z, 0xff4400, 2.0);
@@ -762,13 +762,23 @@ class Game {
                         this.addScreenShake((30 - dist) / 30 * 0.8);
                     }
                 }
+                
+                // Show kill streak if applicable
+                if (killer.id === this.localPlayerId && killer.killStreak >= 3) {
+                    this.ui.showKillStreak(killer.killStreak);
+                }
             }
         }
-        this.ui.addKillMessage(killer.name || 'Unknown', victim.name || 'Unknown');
+        this.ui.addKillMessage(killer.name || 'Unknown', victim.name || 'Unknown', data.weapon || 'smoky', data.isCrit || false);
     }
 
     onChatMessage(data) {
         this.ui.addChatMessage(data.player, data.message);
+    }
+    
+    onPowerupPickup(type) {
+        this.ui.showPowerupPickup(type);
+        this.audio.play('powerup');
     }
 
     cleanup() {

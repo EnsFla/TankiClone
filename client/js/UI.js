@@ -358,13 +358,58 @@ class UI {
         }
     }
 
-    addKillMessage(killer, victim) {
+    addKillMessage(killer, victim, weapon = 'smoky', isCrit = false) {
         if (!this.elements.killFeed) return;
         const msg = document.createElement('div');
         msg.className = 'kill-message';
-        msg.innerHTML = `<span style="color:#00ff88">${this.escapeHtml(killer)}</span> eliminated <span style="color:#ff4444">${this.escapeHtml(victim)}</span>`;
+        
+        // Weapon icons for kill feed
+        const weaponIcons = {
+            smoky: '🔫', firebird: '🔥', freeze: '❄️', twins: '⚡', isida: '💚',
+            thunder: '💥', railgun: '🎯', ricochet: '🔄', shaft: '🔭', vulcan: '🔶'
+        };
+        const icon = weaponIcons[weapon] || '💀';
+        const critText = isCrit ? ' <span style="color:#ffff00">(CRITICAL!)</span>' : '';
+        
+        msg.innerHTML = `<span style="color:#00ff88">${this.escapeHtml(killer)}</span> ${icon} <span style="color:#ff4444">${this.escapeHtml(victim)}</span>${critText}`;
         this.elements.killFeed.appendChild(msg);
         setTimeout(() => msg.remove(), 5000);
+    }
+    
+    // Show kill streak notification
+    showKillStreak(streak) {
+        if (streak < 3) return;
+        const streakNames = { 3: 'Triple Kill!', 4: 'Mega Kill!', 5: 'Ultra Kill!', 6: 'Unstoppable!' };
+        const name = streakNames[Math.min(streak, 6)];
+        
+        // Create streak notification element
+        const notification = document.createElement('div');
+        notification.className = 'streak-notification';
+        notification.textContent = name;
+        notification.style.cssText = `
+            position: fixed; top: 25%; left: 50%; transform: translateX(-50%);
+            font-size: 32px; font-weight: bold; color: #ffcc00;
+            text-shadow: 0 0 10px #ff8800, 0 0 20px #ff4400;
+            z-index: 2000; animation: streakPop 2s ease-out forwards;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 2000);
+    }
+    
+    // Show powerup pickup notification
+    showPowerupPickup(type) {
+        const names = { damage: '⚔️ DAMAGE BOOST!', speed: '💨 SPEED BOOST!', armor: '🛡️ ARMOR!', nitro: '🚀 NITRO!' };
+        const notification = document.createElement('div');
+        notification.className = 'powerup-notification';
+        notification.textContent = names[type] || type.toUpperCase();
+        notification.style.cssText = `
+            position: fixed; top: 35%; left: 50%; transform: translateX(-50%);
+            font-size: 24px; font-weight: bold; color: #00ffcc;
+            text-shadow: 0 0 8px #00cc99;
+            z-index: 2000; animation: powerupPop 1.5s ease-out forwards;
+        `;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 1500);
     }
 
     showRespawn(seconds) {
