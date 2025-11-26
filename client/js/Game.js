@@ -361,10 +361,11 @@ class Game {
     onGameState(state) {
         this.gameState = state;
         this.syncPlayers(state.players);
+        const now = performance.now();
         if (this.map) {
-            this.map.updateHealthPacks(state.healthPacks);
+            this.map.updateHealthPacks(state.healthPacks, now);
             if (state.flags) {
-                this.map.updateFlags(state.flags);
+                this.map.updateFlags(state.flags, now);
             }
         }
     }
@@ -372,6 +373,7 @@ class Game {
     onGameUpdate(state) {
         this.gameState = state;
         const deltaTime = 1 / 60;
+        const now = performance.now();
         if (state.players) {
             Object.entries(state.players).forEach(([id, playerData]) => {
                 const tank = this.tanks.get(id);
@@ -388,9 +390,9 @@ class Game {
             });
         }
         if (this.map) {
-            this.map.updateHealthPacks(state.healthPacks);
+            this.map.updateHealthPacks(state.healthPacks, now);
             if (state.flags) {
-                this.map.updateFlags(state.flags);
+                this.map.updateFlags(state.flags, now);
             }
         }
     }

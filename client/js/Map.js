@@ -302,7 +302,8 @@ class GameMap {
         return group;
     }
 
-    updateHealthPacks(data) {
+    updateHealthPacks(data, time) {
+        const now = time || Date.now();
         data.forEach(hp => {
             let pack = this.healthPacks.find(p => p.userData.id === hp.id);
             if (!pack && hp.active) pack = this.createHealthPack(hp.x, hp.z, hp.id);
@@ -310,12 +311,13 @@ class GameMap {
                 pack.visible = hp.active; 
                 pack.rotation.y += 0.03;
                 // Bobbing animation
-                pack.position.y = 0.3 + Math.sin(Date.now() * 0.003 + hp.id) * 0.15;
+                pack.position.y = 0.3 + Math.sin(now * 0.003 + hp.id) * 0.15;
             }
         });
     }
 
-    updateFlags(data) {
+    updateFlags(data, time) {
+        const now = time || Date.now();
         ['red', 'blue'].forEach(team => {
             if (data[team]) {
                 if (!this.flags[team]) this.createFlag(data[team].x, data[team].z, team);
@@ -323,7 +325,7 @@ class GameMap {
                 this.flags[team].visible = !data[team].carrier;
                 // Animate flag
                 if (this.flags[team].children[2]) {
-                    this.flags[team].children[2].rotation.y = Math.sin(Date.now() * 0.002) * 0.2;
+                    this.flags[team].children[2].rotation.y = Math.sin(now * 0.002) * 0.2;
                 }
             }
         });

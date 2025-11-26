@@ -257,7 +257,7 @@ class Effects {
             p.life -= deltaTime;
             
             if (p.velocity) {
-                p.position.add(p.velocity.clone().multiplyScalar(deltaTime));
+                p.position.addScaledVector(p.velocity, deltaTime);
                 p.velocity.y -= 12 * deltaTime;
             }
             
@@ -288,7 +288,7 @@ class Effects {
                 p.life -= deltaTime;
                 
                 if (p.velocity) {
-                    p.position.add(p.velocity.clone().multiplyScalar(deltaTime));
+                    p.position.addScaledVector(p.velocity, deltaTime);
                     
                     if (p.isSmoke) {
                         p.velocity.y -= 2 * deltaTime;
@@ -342,7 +342,7 @@ class Effects {
             const d = this.dustParticles[i];
             d.life -= deltaTime;
             if (d.velocity) {
-                d.position.add(d.velocity.clone().multiplyScalar(deltaTime));
+                d.position.addScaledVector(d.velocity, deltaTime);
                 d.velocity.y -= deltaTime;
                 d.velocity.multiplyScalar(0.98);
             }

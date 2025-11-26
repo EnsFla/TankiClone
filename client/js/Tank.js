@@ -222,7 +222,7 @@ class Tank {
         this.mesh.visible = this.alive;
         
         // Update health bar
-        if (this.healthFill) {
+        if (this.healthFill && this.maxHp > 0) {
             const healthPercent = this.hp / this.maxHp;
             this.healthFill.scale.x = healthPercent;
             this.healthFill.position.x = (1 - healthPercent) * 1.2;
