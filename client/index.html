@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tanki Online Classic</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="main-menu" class="screen active">
+        <div class="menu-container">
+            <h1 class="game-title">TANKI ONLINE</h1>
+            <h2 class="game-subtitle">CLASSIC</h2>
+            <div class="menu-form">
+                <input type="text" id="player-name" placeholder="Enter your name" maxlength="20">
+                <button id="btn-play" class="menu-btn primary">PLAY</button>
+                <button id="btn-garage" class="menu-btn">GARAGE</button>
+            </div>
+        </div>
+    </div>
+    <div id="garage-screen" class="screen">
+        <div class="garage-container">
+            <h2>GARAGE</h2>
+            <div class="garage-content">
+                <div class="garage-preview"><canvas id="garage-tank-preview"></canvas></div>
+                <div class="garage-selection">
+                    <div class="selection-group">
+                        <h3>HULL</h3>
+                        <div id="hull-list" class="item-list"></div>
+                    </div>
+                    <div class="selection-group">
+                        <h3>TURRET</h3>
+                        <div id="turret-list" class="item-list"></div>
+                    </div>
+                </div>
+            </div>
+            <button id="btn-garage-back" class="menu-btn">BACK</button>
+        </div>
+    </div>
+    <div id="browser-screen" class="screen">
+        <div class="browser-container">
+            <h2>BATTLE SELECT</h2>
+            <div class="browser-content">
+                <div id="room-list" class="room-list"></div>
+                <div class="create-room-panel">
+                    <h3>CREATE BATTLE</h3>
+                    <input type="text" id="room-name" placeholder="Room name" maxlength="30">
+                    <select id="room-map"><option value="sandbox">Sandbox</option><option value="silence">Silence</option><option value="kungur">Kungur</option></select>
+                    <select id="room-mode"><option value="dm">Deathmatch</option><option value="tdm">Team Deathmatch</option><option value="ctf">Capture the Flag</option></select>
+                    <select id="room-players"><option value="4">4 Players</option><option value="8" selected>8 Players</option></select>
+                    <button id="btn-create-room" class="menu-btn primary">CREATE</button>
+                </div>
+            </div>
+            <button id="btn-browser-back" class="menu-btn">BACK</button>
+        </div>
+    </div>
+    <div id="waiting-screen" class="screen">
+        <div class="waiting-container">
+            <h2 id="waiting-room-name">Battle Room</h2>
+            <div id="waiting-players" class="waiting-players"></div>
+            <div class="waiting-buttons">
+                <button id="btn-ready" class="menu-btn primary">READY</button>
+                <button id="btn-leave-room" class="menu-btn">LEAVE</button>
+            </div>
+        </div>
+    </div>
+    <div id="game-screen" class="screen">
+        <canvas id="game-canvas"></canvas>
+        <div id="hud">
+            <div id="health-container"><div id="health-bar"><div id="health-fill"></div></div><span id="health-text">200/200</span></div>
+            <div id="reload-container"><div id="reload-bar"><div id="reload-fill"></div></div></div>
+            <div id="score-container"><span>Kills: <span id="kills-count">0</span></span></div>
+            <div id="timer-container"><span id="game-timer">10:00</span></div>
+            <div id="kill-feed"></div>
+            <div id="minimap"><canvas id="minimap-canvas"></canvas></div>
+            <div id="respawn-overlay" style="display:none;"><span>RESPAWNING IN <span id="respawn-timer">5</span></span></div>
+            <div id="chat-container"><div id="chat-messages"></div><input type="text" id="chat-input" placeholder="Press Enter to chat..." style="display:none;"></div>
+        </div>
+        <div id="scoreboard" style="display:none;"><h2>SCOREBOARD</h2><table id="scoreboard-table"><thead><tr><th>Player</th><th>Kills</th><th>Deaths</th></tr></thead><tbody id="scoreboard-body"></tbody></table></div>
+    </div>
+    <div id="gameover-screen" class="screen">
+        <div class="gameover-container">
+            <h2 id="gameover-title">GAME OVER</h2>
+            <h3 id="gameover-winner"></h3>
+            <button id="btn-gameover-continue" class="menu-btn primary">CONTINUE</button>
+        </div>
+    </div>
+    <script src="js/Config.js"></script>
+    <script src="js/Network.js"></script>
+    <script src="js/Tank.js"></script>
+    <script src="js/Projectile.js"></script>
+    <script src="js/Map.js"></script>
+    <script src="js/Effects.js"></script>
+    <script src="js/Audio.js"></script>
+    <script src="js/UI.js"></script>
+    <script src="js/Game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>
