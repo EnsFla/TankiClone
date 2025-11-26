@@ -24,7 +24,7 @@ class Game {
         this.chatOpen = false;
         this.shaftCharging = false;
         this.shaftChargeStart = 0;
-        // Camera smoothing
+        // Camera smoothing - separate position and angle tracking
         this.cameraTarget = { x: 0, y: CONFIG.CAMERA_HEIGHT, z: CONFIG.CAMERA_DISTANCE };
         this.cameraLookAt = { x: 0, y: 0, z: 0 };
         // Screen shake
@@ -36,6 +36,9 @@ class Game {
         // Damage number pool for performance
         this.damageNumberPool = [];
         this.maxDamageNumbers = 20;
+        // Turret rotation tracking for pointer lock mode
+        this.turretAngle = 0;
+        this.mouseSensitivity = 0.003;
     }
 
     init() {
@@ -359,8 +362,11 @@ class Game {
 
     onMouseMove(e) {
         if (document.pointerLockElement === this.canvas) {
-            this.mouse.x += e.movementX;
-            this.mouse.y += e.movementY;
+            // When pointer is locked, update turret angle based on mouse movement
+            this.turretAngle += e.movementX * this.mouseSensitivity;
+            // Keep angle in [-PI, PI] range
+            while (this.turretAngle > Math.PI) this.turretAngle -= Math.PI * 2;
+            while (this.turretAngle < -Math.PI) this.turretAngle += Math.PI * 2;
         } else {
             const rect = this.canvas.getBoundingClientRect();
             this.mouse.x = e.clientX - rect.left;
@@ -479,12 +485,12 @@ class Game {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return 0;
         
-        // When pointer is locked, use center of screen for aiming
+        // When pointer is locked, use tracked turret angle
         if (document.pointerLockElement === this.canvas) {
-            // Aim straight ahead in camera direction
-            return localPlayer.turretRotation || 0;
+            return this.turretAngle;
         }
         
+        // When not locked, use mouse position to aim
         const tankPos = new THREE.Vector3(localPlayer.x, 0, localPlayer.z);
         const raycaster = new THREE.Raycaster();
         const mouseNDC = new THREE.Vector2(
@@ -507,29 +513,32 @@ class Game {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return;
         
-        const turretAngle = localPlayer.turretRotation || 0;
-        const cameraDistance = CONFIG.CAMERA_DISTANCE || 18;
-        const cameraHeight = CONFIG.CAMERA_HEIGHT || 12;
-        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 8;
+        // Use the tracked turret angle when pointer is locked, otherwise use player's turret rotation
+        const turretAngle = document.pointerLockElement === this.canvas 
+            ? this.turretAngle 
+            : (localPlayer.turretRotation || 0);
+        const cameraDistance = CONFIG.CAMERA_DISTANCE || 14;
+        const cameraHeight = CONFIG.CAMERA_HEIGHT || 8;
+        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 6;
         
-        // Camera positioned behind the turret direction with slight offset
+        // Camera positioned behind the turret direction
         const targetX = localPlayer.x - Math.sin(turretAngle) * cameraDistance;
         const targetZ = localPlayer.z - Math.cos(turretAngle) * cameraDistance;
         const targetY = cameraHeight;
         
-        // Calculate look-at point ahead of the tank
+        // Calculate look-at point ahead of the tank (where the turret is aiming)
         const lookAtX = localPlayer.x + Math.sin(turretAngle) * lookAhead;
         const lookAtZ = localPlayer.z + Math.cos(turretAngle) * lookAhead;
         
-        // Smooth camera movement - faster smoothing for better response
-        const smoothing = CONFIG.CAMERA_SMOOTHING || 0.12;
+        // Use faster smoothing for more responsive camera
+        const smoothing = Math.min(1, (CONFIG.CAMERA_SMOOTHING || 0.18) * 60 * deltaTime);
         this.cameraTarget.x += (targetX - this.cameraTarget.x) * smoothing;
         this.cameraTarget.y += (targetY - this.cameraTarget.y) * smoothing;
         this.cameraTarget.z += (targetZ - this.cameraTarget.z) * smoothing;
         
-        // Look at point slightly ahead of tank
-        this.cameraLookAt.x += (lookAtX - this.cameraLookAt.x) * smoothing * 1.2;
-        this.cameraLookAt.z += (lookAtZ - this.cameraLookAt.z) * smoothing * 1.2;
+        // Look at point with slightly faster interpolation
+        this.cameraLookAt.x += (lookAtX - this.cameraLookAt.x) * smoothing * 1.3;
+        this.cameraLookAt.z += (lookAtZ - this.cameraLookAt.z) * smoothing * 1.3;
         
         // Apply screen shake if active
         let shakeX = 0, shakeY = 0;
@@ -544,7 +553,7 @@ class Game {
             this.cameraTarget.y + shakeY,
             this.cameraTarget.z
         );
-        this.camera.lookAt(this.cameraLookAt.x, 1.5, this.cameraLookAt.z);
+        this.camera.lookAt(this.cameraLookAt.x, 1, this.cameraLookAt.z);
     }
     
     addScreenShake(intensity) {

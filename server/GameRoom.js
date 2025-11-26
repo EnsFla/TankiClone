@@ -555,12 +555,14 @@ class GameRoom {
         }
     }
 
-    // Ray-cast from start to end to find wall collision
+    // Ray-cast from start to end to find wall collision with finer stepping
     raycastProjectileWall(startX, startZ, endX, endZ, proj) {
         const mapData = MAPS[this.map] || MAPS.sandbox;
         const dx = endX - startX;
         const dz = endZ - startZ;
-        const steps = Math.max(Math.ceil(Math.sqrt(dx * dx + dz * dz) / 0.5), 1);
+        const dist = Math.sqrt(dx * dx + dz * dz);
+        // Use finer step size (0.2 units) to prevent tunneling through walls
+        const steps = Math.max(Math.ceil(dist / 0.2), 1);
         
         for (let step = 1; step <= steps; step++) {
             const t = step / steps;
@@ -574,21 +576,18 @@ class GameRoom {
                 if (checkX > obs.x - halfW && checkX < obs.x + halfW && 
                     checkZ > obs.z - halfD && checkZ < obs.z + halfD) {
                     // Get position just before collision
-                    const prevT = (step - 1) / steps;
+                    const prevT = Math.max(0, (step - 1) / steps);
                     const prevX = startX + dx * prevT;
                     const prevZ = startZ + dz * prevT;
                     
-                    // Determine wall normal based on entry direction
-                    // Check which axis crossed first by comparing distances
+                    // Determine wall normal based on which face was hit
                     let normal = 'x';
-                    if (Math.abs(dx) > 0.001 && Math.abs(dz) > 0.001) {
-                        // Calculate time to cross each boundary
-                        const txEnter = dx > 0 ? (obs.x - halfW - prevX) / dx : (obs.x + halfW - prevX) / dx;
-                        const tzEnter = dz > 0 ? (obs.z - halfD - prevZ) / dz : (obs.z + halfD - prevZ) / dz;
-                        normal = txEnter > tzEnter ? 'x' : 'z';
-                    } else if (Math.abs(dx) <= 0.001) {
-                        normal = 'z';
-                    }
+                    const relX = checkX - obs.x;
+                    const relZ = checkZ - obs.z;
+                    // Compare penetration depths to find which face was hit
+                    const penX = halfW - Math.abs(relX);
+                    const penZ = halfD - Math.abs(relZ);
+                    normal = penX < penZ ? 'x' : 'z';
                     
                     return { x: prevX, z: prevZ, normal };
                 }
