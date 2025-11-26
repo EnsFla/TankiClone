@@ -19,39 +19,67 @@ class Game {
         this.mouse = { x: 0, y: 0, down: false };
         this.lastFrameTime = 0;
         this.lastInputSent = 0;
-        this.inputInterval = 1000 / 30;
+        this.inputInterval = 1000 / 60;  // Higher input rate for smoother feel
         this.running = false;
         this.chatOpen = false;
         this.shaftCharging = false;
         this.shaftChargeStart = 0;
+        // Camera smoothing
+        this.cameraTarget = { x: 0, y: CONFIG.CAMERA_HEIGHT, z: CONFIG.CAMERA_DISTANCE };
+        this.cameraLookAt = { x: 0, y: 0, z: 0 };
+        // Screen shake
+        this.screenShake = { intensity: 0, decay: 0.9 };
     }
 
     init() {
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x222244);
-        this.scene.fog = new THREE.Fog(0x222244, 50, 150);
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        // Better sky color
+        this.scene.background = new THREE.Color(0x87ceeb);
+        // Improved fog for depth perception
+        this.scene.fog = new THREE.Fog(0x87ceeb, 80, 200);
+        
+        // Better lighting setup
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.4);
         this.scene.add(ambientLight);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(50, 100, 50);
+        
+        // Hemisphere light for natural outdoor feel
+        const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x3d5c3d, 0.4);
+        this.scene.add(hemiLight);
+        
+        // Main directional light (sun)
+        const directionalLight = new THREE.DirectionalLight(0xfff5e6, 1.0);
+        directionalLight.position.set(30, 80, 40);
         directionalLight.castShadow = true;
-        directionalLight.shadow.mapSize.width = 2048;
-        directionalLight.shadow.mapSize.height = 2048;
+        directionalLight.shadow.mapSize.width = 4096;
+        directionalLight.shadow.mapSize.height = 4096;
         directionalLight.shadow.camera.near = 10;
-        directionalLight.shadow.camera.far = 200;
-        directionalLight.shadow.camera.left = -60;
-        directionalLight.shadow.camera.right = 60;
-        directionalLight.shadow.camera.top = 60;
-        directionalLight.shadow.camera.bottom = -60;
+        directionalLight.shadow.camera.far = 250;
+        directionalLight.shadow.camera.left = -80;
+        directionalLight.shadow.camera.right = 80;
+        directionalLight.shadow.camera.top = 80;
+        directionalLight.shadow.camera.bottom = -80;
+        directionalLight.shadow.bias = -0.0005;
         this.scene.add(directionalLight);
+        
+        // Fill light from opposite side
+        const fillLight = new THREE.DirectionalLight(0x8888ff, 0.3);
+        fillLight.position.set(-30, 40, -30);
+        this.scene.add(fillLight);
+        
         const aspect = this.canvas.clientWidth / this.canvas.clientHeight;
-        this.camera = new THREE.PerspectiveCamera(60, aspect, 0.1, 1000);
+        this.camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 1000);
         this.camera.position.set(0, CONFIG.CAMERA_HEIGHT, CONFIG.CAMERA_DISTANCE);
         this.camera.lookAt(0, 0, 0);
+        
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
         this.renderer.setSize(this.canvas.clientWidth, this.canvas.clientHeight);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.renderer.toneMappingExposure = 1.1;
+        this.renderer.outputEncoding = THREE.sRGBEncoding;
+        
         this.effects = new Effects(this.scene);
         this.audio = new Audio();
         this.setupEventListeners();
@@ -195,7 +223,7 @@ class Game {
 
     update(deltaTime) {
         this.sendInput();
-        this.updateCamera();
+        this.updateCamera(deltaTime);
         this.updateProjectiles(deltaTime);
         this.effects.update(deltaTime);
         this.updateHUD();
@@ -246,16 +274,48 @@ class Game {
         return localPlayer.turretRotation || 0;
     }
 
-    updateCamera() {
+    updateCamera(deltaTime) {
         const localPlayer = this.getLocalPlayer();
         if (!localPlayer) return;
-        const targetX = localPlayer.x;
-        const targetZ = localPlayer.z + CONFIG.CAMERA_DISTANCE * Math.cos(CONFIG.CAMERA_ANGLE);
+        
+        // Calculate look-ahead based on player movement direction
+        const lookAhead = CONFIG.CAMERA_LOOK_AHEAD || 5;
+        const lookAheadX = Math.sin(localPlayer.rotation) * lookAhead;
+        const lookAheadZ = Math.cos(localPlayer.rotation) * lookAhead;
+        
+        // Target position with look-ahead
+        const targetX = localPlayer.x + lookAheadX * 0.3;
+        const targetZ = localPlayer.z + CONFIG.CAMERA_DISTANCE + lookAheadZ * 0.3;
         const targetY = CONFIG.CAMERA_HEIGHT;
-        this.camera.position.x += (targetX - this.camera.position.x) * 0.1;
-        this.camera.position.y += (targetY - this.camera.position.y) * 0.1;
-        this.camera.position.z += (targetZ - this.camera.position.z) * 0.1;
-        this.camera.lookAt(localPlayer.x, 0, localPlayer.z);
+        
+        // Smooth camera movement with configurable smoothing
+        const smoothing = CONFIG.CAMERA_SMOOTHING || 0.08;
+        this.cameraTarget.x += (targetX - this.cameraTarget.x) * smoothing;
+        this.cameraTarget.y += (targetY - this.cameraTarget.y) * smoothing;
+        this.cameraTarget.z += (targetZ - this.cameraTarget.z) * smoothing;
+        
+        // Smooth look-at target
+        this.cameraLookAt.x += (localPlayer.x - this.cameraLookAt.x) * smoothing * 1.5;
+        this.cameraLookAt.z += (localPlayer.z - this.cameraLookAt.z) * smoothing * 1.5;
+        
+        // Apply screen shake if active
+        let shakeX = 0, shakeY = 0;
+        if (this.screenShake.intensity > 0.01) {
+            shakeX = (Math.random() - 0.5) * this.screenShake.intensity;
+            shakeY = (Math.random() - 0.5) * this.screenShake.intensity;
+            this.screenShake.intensity *= this.screenShake.decay;
+        }
+        
+        this.camera.position.set(
+            this.cameraTarget.x + shakeX,
+            this.cameraTarget.y + shakeY,
+            this.cameraTarget.z
+        );
+        this.camera.lookAt(this.cameraLookAt.x, 1, this.cameraLookAt.z);
+    }
+    
+    addScreenShake(intensity) {
+        this.screenShake.intensity = Math.max(this.screenShake.intensity, intensity);
     }
 
     updateProjectiles(deltaTime) {
@@ -384,8 +444,23 @@ class Game {
     onPlayerKilled(killer, victim) {
         const victimTank = this.tanks.get(victim.id);
         if (victimTank) {
-            this.effects.createExplosion(victimTank.x, 1, victimTank.z, 0xff4400, 1.5);
+            this.effects.createExplosion(victimTank.x, 1, victimTank.z, 0xff4400, 2.0);
             this.audio.play('explosion');
+            
+            // Screen shake if local player is nearby or is the victim
+            const localPlayer = this.getLocalPlayer();
+            if (localPlayer) {
+                if (victim.id === this.localPlayerId) {
+                    this.addScreenShake(1.5);
+                } else {
+                    const dx = victimTank.x - localPlayer.x;
+                    const dz = victimTank.z - localPlayer.z;
+                    const dist = Math.sqrt(dx * dx + dz * dz);
+                    if (dist < 30) {
+                        this.addScreenShake((30 - dist) / 30 * 0.8);
+                    }
+                }
+            }
         }
         this.ui.addKillMessage(killer.name || 'Unknown', victim.name || 'Unknown');
     }
