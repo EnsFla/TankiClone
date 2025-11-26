@@ -216,8 +216,16 @@ class GameRoom {
         const hull = HULLS[player.hull];
         const input = player.input || {};
         let speedMult = (player.slowUntil && Date.now() < player.slowUntil) ? 0.5 : 1;
+        const rotationChanged = input.left || input.right;
         if (input.left) player.rotation += hull.turnSpeed * deltaTime * speedMult;
         if (input.right) player.rotation -= hull.turnSpeed * deltaTime * speedMult;
+        
+        // Cache trig values for hitbox calculations when rotation changes
+        if (rotationChanged || player.cosRotation === undefined) {
+            player.cosRotation = Math.cos(-player.rotation);
+            player.sinRotation = Math.sin(-player.rotation);
+        }
+        
         let moveSpeed = 0;
         if (input.forward) moveSpeed = hull.speed * speedMult;
         if (input.backward) moveSpeed = -hull.speed * 0.6 * speedMult;
@@ -436,9 +444,9 @@ class GameRoom {
             const dx = proj.x - player.x;
             const dz = proj.z - player.z;
             
-            // Rotate the projectile position into tank's local coordinate system
-            const cos = Math.cos(-player.rotation);
-            const sin = Math.sin(-player.rotation);
+            // Use cached trig values if available, otherwise compute
+            const cos = player.cosRotation !== undefined ? player.cosRotation : Math.cos(-player.rotation);
+            const sin = player.sinRotation !== undefined ? player.sinRotation : Math.sin(-player.rotation);
             const localX = dx * cos - dz * sin;
             const localZ = dx * sin + dz * cos;
             

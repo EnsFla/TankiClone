@@ -33,9 +33,9 @@ class Game {
         this.frameCount = 0;
         this.fpsUpdateTime = 0;
         this.currentFps = 0;
-        this.damageNumbers = [];
-        this.hitMarkers = [];
-        this.lastDamageTime = {};
+        // Damage number pool for performance
+        this.damageNumberPool = [];
+        this.maxDamageNumbers = 20;
     }
 
     init() {
@@ -245,13 +245,30 @@ class Game {
         const screenX = (vector.x * 0.5 + 0.5) * this.canvas.clientWidth;
         const screenY = (-vector.y * 0.5 + 0.5) * this.canvas.clientHeight;
         
-        const damageNum = document.createElement('div');
-        damageNum.className = 'damage-number';
+        // Reuse or create damage number element (object pool)
+        let damageNum = this.damageNumberPool.pop();
+        if (!damageNum) {
+            damageNum = document.createElement('div');
+            damageNum.className = 'damage-number';
+            document.body.appendChild(damageNum);
+        }
+        
+        // Reset and position
         damageNum.textContent = '-' + Math.round(damage);
         damageNum.style.left = screenX + 'px';
         damageNum.style.top = screenY + 'px';
-        document.body.appendChild(damageNum);
-        setTimeout(() => damageNum.remove(), 1000);
+        damageNum.style.animation = 'none';
+        damageNum.offsetHeight; // Trigger reflow
+        damageNum.style.animation = 'damageFloat 1s ease-out forwards';
+        
+        // Return to pool after animation
+        setTimeout(() => {
+            if (this.damageNumberPool.length < this.maxDamageNumbers) {
+                this.damageNumberPool.push(damageNum);
+            } else {
+                damageNum.remove();
+            }
+        }, 1000);
     }
     
     updateFPS(deltaTime) {
