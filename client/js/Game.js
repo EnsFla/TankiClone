@@ -530,15 +530,18 @@ class Game {
         const lookAtX = localPlayer.x + Math.sin(turretAngle) * lookAhead;
         const lookAtZ = localPlayer.z + Math.cos(turretAngle) * lookAhead;
         
-        // Use faster smoothing for more responsive camera
-        const smoothing = Math.min(1, (CONFIG.CAMERA_SMOOTHING || 0.18) * 60 * deltaTime);
+        // Frame-rate independent smoothing using exponential decay
+        // Formula: 1 - (1 - smoothFactor)^(deltaTime * 60) approximates consistent smoothing
+        const smoothFactor = CONFIG.CAMERA_SMOOTHING || 0.18;
+        const smoothing = 1 - Math.pow(1 - smoothFactor, deltaTime * 60);
         this.cameraTarget.x += (targetX - this.cameraTarget.x) * smoothing;
         this.cameraTarget.y += (targetY - this.cameraTarget.y) * smoothing;
         this.cameraTarget.z += (targetZ - this.cameraTarget.z) * smoothing;
         
         // Look at point with slightly faster interpolation
-        this.cameraLookAt.x += (lookAtX - this.cameraLookAt.x) * smoothing * 1.3;
-        this.cameraLookAt.z += (lookAtZ - this.cameraLookAt.z) * smoothing * 1.3;
+        const lookSmoothing = 1 - Math.pow(1 - smoothFactor * 1.3, deltaTime * 60);
+        this.cameraLookAt.x += (lookAtX - this.cameraLookAt.x) * lookSmoothing;
+        this.cameraLookAt.z += (lookAtZ - this.cameraLookAt.z) * lookSmoothing;
         
         // Apply screen shake if active
         let shakeX = 0, shakeY = 0;

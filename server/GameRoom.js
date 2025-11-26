@@ -580,14 +580,14 @@ class GameRoom {
                     const prevX = startX + dx * prevT;
                     const prevZ = startZ + dz * prevT;
                     
-                    // Determine wall normal based on which face was hit
-                    let normal = 'x';
+                    // Determine which wall face was hit by comparing penetration depths.
+                    // The axis with smaller penetration is the one the projectile crossed most recently,
+                    // so it's the face that should be used for the bounce normal.
                     const relX = checkX - obs.x;
                     const relZ = checkZ - obs.z;
-                    // Compare penetration depths to find which face was hit
-                    const penX = halfW - Math.abs(relX);
-                    const penZ = halfD - Math.abs(relZ);
-                    normal = penX < penZ ? 'x' : 'z';
+                    const penX = halfW - Math.abs(relX);  // How deep into the X faces
+                    const penZ = halfD - Math.abs(relZ);  // How deep into the Z faces
+                    const normal = penX < penZ ? 'x' : 'z';
                     
                     return { x: prevX, z: prevZ, normal };
                 }
